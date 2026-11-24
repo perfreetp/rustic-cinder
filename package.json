@@ -1,0 +1,31 @@
+{
+  "name": "bamboo-lampshade-weaver",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "竹编灯罩编织预览工具 — TypeScript / React / three.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test:engine": "node --experimental-strip-types src/core/engine.test.ts",
+    "test:config": "node --experimental-strip-types scripts/config-roundtrip.test.ts",
+    "test": "npm run test:engine && npm run test:config"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "0.169.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "0.169.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "puppeteer-core": "^23.11.1",
+    "typescript": "~5.6.3",
+    "vite": "^5.4.9"
+  }
+}
