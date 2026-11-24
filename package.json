@@ -1,0 +1,26 @@
+{
+  "name": "zhexu-origami-studio",
+  "private": true,
+  "version": "1.0.0",
+  "description": "折序 — 折纸展开序列渲染工具 (TypeScript + Web Components + PixiJS/WebGPU)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "smoke": "node tools/smoke.mjs",
+    "tokens": "node tools/gen-tokens.mjs"
+  },
+  "dependencies": {
+    "pixi.js": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "playwright-core": "^1.65.1",
+    "typescript": "^5.6.3",
+    "vite": "^7.0.2",
+    "vitest": "^2.1.9"
+  }
+}

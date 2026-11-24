@@ -1,0 +1,63 @@
+/* ------------------------------------------------------------------ *
+ * Design tokens for 折序.
+ *
+ * This file is the editable source. A matching `tokenCss.ts` holds the same
+ * text as a JS string so every shadow root can inject it synchronously (see
+ * `base.ts`). After editing, regenerate with `npm run tokens`.
+ * ------------------------------------------------------------------ */
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+:host{
+  --bg-0:#0e0f13;--bg-1:#15171c;--bg-2:#1b1e24;--bg-3:#23272f;--bg-4:#2c313a;
+  --line-1:#262a33;--line-2:#333945;--line-3:#444c5a;
+  --ink-0:#f3efe6;--ink-1:#cdc9c0;--ink-2:#96938c;--ink-3:#6b6963;
+  --accent:#e0743f;--accent-hi:#f28a52;--accent-dim:#8a4726;
+  --valley:#5aa9e6;--mountain:#e0885a;--ok:#5fbf8a;--warn:#e0b352;--danger:#e06a6a;
+  --paper:#f3e7d3;
+  --radius-s:5px;--radius-m:8px;--radius-l:12px;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:24px;--sp-6:32px;
+  --font-ui:'Inter','PingFang SC','Hiragino Sans GB','Microsoft YaHei',system-ui,sans-serif;
+  --font-num:'JetBrains Mono','SF Mono',ui-monospace,monospace;
+  --shadow-1:0 1px 2px rgba(0,0,0,.4);--shadow-2:0 6px 22px rgba(0,0,0,.45);--shadow-3:0 18px 50px rgba(0,0,0,.55);
+  color-scheme:dark;
+  font-family:var(--font-ui);font-size:13px;line-height:1.5;color:var(--ink-1);
+}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+button:disabled{cursor:not-allowed;opacity:.42}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:18px;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:var(--line-3)}
+input[type=range]::-moz-range-track{height:3px;border-radius:2px;background:var(--line-3)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:13px;height:13px;margin-top:-5px;border-radius:50%;background:var(--ink-0);border:2px solid var(--bg-1);box-shadow:var(--shadow-1);transition:transform .12s ease,background .12s ease}
+input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:var(--ink-0);border:2px solid var(--bg-1)}
+input[type=range]:hover::-webkit-slider-thumb,input[type=range]:focus-visible::-webkit-slider-thumb{background:var(--accent-hi);transform:scale(1.15)}
+input[type=range]:focus-visible{outline:none}
+input[type=number],input[type=text],select{font:inherit;color:var(--ink-0);background:var(--bg-0);border:1px solid var(--line-2);border-radius:var(--radius-s);padding:5px 8px;outline:none;transition:border-color .15s ease,background .15s ease}
+input[type=number]:focus,input[type=text]:focus,select:focus{border-color:var(--accent);background:var(--bg-1)}
+input[type=number]{font-family:var(--font-num);font-size:12px;width:64px;-moz-appearance:textfield}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=checkbox]{accent-color:var(--accent);width:14px;height:14px;cursor:pointer}
+::selection{background:var(--accent-dim);color:var(--ink-0)}
+::-webkit-scrollbar{width:9px;height:9px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:5px;border:2px solid var(--bg-1)}
+::-webkit-scrollbar-thumb:hover{background:var(--line-3)}
+.field{display:flex;align-items:center;gap:var(--sp-2);min-height:26px}
+.field>label{flex:0 0 auto;min-width:62px;color:var(--ink-2);font-size:12px}
+.field>.grow{flex:1 1 auto;min-width:0}
+.field .value{flex:0 0 auto;min-width:46px;text-align:right;font-family:var(--font-num);font-size:11px;color:var(--ink-1);font-variant-numeric:tabular-nums}
+.seg{display:inline-flex;padding:2px;gap:2px;background:var(--bg-0);border:1px solid var(--line-2);border-radius:var(--radius-s)}
+.seg>button{padding:3px 9px;border-radius:3px;font-size:11.5px;color:var(--ink-2);white-space:nowrap;transition:background .13s ease,color .13s ease}
+.seg>button:hover{color:var(--ink-0)}
+.seg>button[aria-pressed=true]{background:var(--bg-4);color:var(--ink-0)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;padding:0 11px;border-radius:var(--radius-s);border:1px solid var(--line-2);background:var(--bg-2);color:var(--ink-1);font-size:12px;white-space:nowrap;transition:background .13s ease,border-color .13s ease,color .13s ease}
+.btn:hover:not(:disabled){background:var(--bg-3);color:var(--ink-0);border-color:var(--line-3)}
+.btn:active:not(:disabled){background:var(--bg-4)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#1a0f08;font-weight:600}
+.btn.primary:hover:not(:disabled){background:var(--accent-hi);border-color:var(--accent-hi);color:#1a0f08}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover:not(:disabled){background:var(--bg-3)}
+.btn.danger:hover:not(:disabled){color:var(--danger);border-color:var(--danger)}
+.btn.icon{width:28px;padding:0}
+.kbd{font-family:var(--font-num);font-size:10.5px;padding:1px 5px;border-radius:3px;background:var(--bg-0);border:1px solid var(--line-2);color:var(--ink-2)}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms!important;transition-duration:.001ms!important}}
