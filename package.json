@@ -1,0 +1,27 @@
+{
+  "name": "glow-bloom-lab",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "自发光辉光合成器 — TypeScript + SolidJS + three.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "test": "vitest run",
+    "test:e2e": "node scripts/e2e.mjs"
+  },
+  "dependencies": {
+    "solid-js": "1.9.20",
+    "three": "0.187.0",
+    "three-mesh-bvh": "0.9.18"
+  },
+  "devDependencies": {
+    "@types/three": "0.187.0",
+    "puppeteer-core": "25.18.1",
+    "typescript": "5.9.3",
+    "vite": "7.3.8",
+    "vite-plugin-solid": "2.11.17",
+    "vitest": "3.2.7"
+  }
+}
