@@ -16,3 +16,8 @@ node_modules/
 __pycache__/
 .venv/
 venv/
+dist/
+*.tsbuildinfo
+vite.log
+preview.log
+qa/*.png

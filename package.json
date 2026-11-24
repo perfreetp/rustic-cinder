@@ -1,0 +1,40 @@
+{
+  "name": "form-studio",
+  "version": "1.0.0",
+  "description": "FORM · 基于笔刷的生成式三维造型工作台 (TypeScript + React + three.js + manifold-3d)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --force"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/perfreetp/rustic-cinder.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/perfreetp/rustic-cinder/issues"
+  },
+  "homepage": "https://github.com/perfreetp/rustic-cinder#readme",
+  "dependencies": {
+    "manifold-3d": "^3.5.5",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "three": "^0.187.0",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.187.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "playwright": "^1.65.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  },
+  "private": true
+}
