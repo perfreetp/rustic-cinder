@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>线稿描线渲染器 · Paper.js + opentype.js</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paper.js/0.12.17/paper-full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/opentype.js/1.3.4/opentype.min.js"></script>
+<style>
+  :root{
+    --bg:#14161c; --panel:#1c1f27; --panel2:#232733; --line:#2e3342;
+    --fg:#dfe3ec; --dim:#8b93a7; --accent:#4da3ff; --accent2:#ffb84d;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; overflow:hidden; background:var(--bg); color:var(--fg);
+    font:13px/1.5 "Segoe UI","Microsoft YaHei",sans-serif;}
+  #app{display:flex; height:100%;}
+  /* ---------- 左侧面板 ---------- */
+  #panel{width:272px; min-width:272px; background:var(--panel); border-right:1px solid var(--line);
+    overflow-y:auto; padding:10px 12px 40px;}
+  #panel h1{font-size:15px; padding:6px 0 10px; color:var(--accent);}
+  #panel h1 small{color:var(--dim); font-weight:normal; font-size:11px;}
+  .mod{border:1px solid var(--line); border-radius:8px; margin-bottom:10px; background:var(--panel2);}
+  .mod>header{padding:7px 10px; cursor:pointer; user-select:none; font-weight:600;
+    display:flex; justify-content:space-between; align-items:center;}
+  .mod>header .tag{font-size:10px; color:var(--dim); font-weight:normal;}
+  .mod>header:hover{color:var(--accent);}
+  .mod .body{padding:4px 10px 10px; display:none;}
+  .mod.open .body{display:block;}
+  .row{display:flex; align-items:center; gap:8px; margin:7px 0;}
+  .row label{flex:0 0 64px; color:var(--dim); font-size:12px;}
+  .row input[type=range]{flex:1; accent-color:var(--accent);}
+  .row .val{flex:0 0 40px; text-align:right; font-variant-numeric:tabular-nums; color:var(--accent2); font-size:12px;}
+  .btn{display:inline-block; padding:5px 10px; border:1px solid var(--line); border-radius:6px;
+    background:#2a2f3d; color:var(--fg); cursor:pointer; font-size:12px; margin:3px 4px 3px 0;}
+  .btn:hover{border-color:var(--accent); color:var(--accent);}
+  .btn.primary{background:var(--accent); border-color:var(--accent); color:#0b1020; font-weight:600;}
+  .btn.warn:hover{border-color:#ff6b6b; color:#ff6b6b;}
+  .btn.active{background:var(--accent); color:#0b1020; border-color:var(--accent); font-weight:600;}
+  .hint{color:var(--dim); font-size:11px; margin:4px 0;}
+  input[type=file]{display:none;}
+  input[type=text]{width:100%; background:#14161c; border:1px solid var(--line); color:var(--fg);
+    border-radius:5px; padding:4px 7px; font-size:12px;}
+  input[type=color]{width:34px; height:24px; border:none; background:none; padding:0; cursor:pointer;}
+  .chk{display:flex; align-items:center; gap:6px; color:var(--dim); font-size:12px; margin:5px 0;}
+  /* ---------- 画布区 ---------- */
+  #stage{flex:1; position:relative; min-width:0; background:#0e1014;}
+  #canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; display:block;}
+  #statusbar{position:absolute; left:0; right:0; bottom:0; height:26px; display:flex; gap:18px;
+    align-items:center; padding:0 12px; background:rgba(20,22,28,.88); border-top:1px solid var(--line);
+    font-size:11px; color:var(--dim); pointer-events:none;}
+  #statusbar b{color:var(--accent2); font-weight:600;}
+  /* ---------- 线宽曲线编辑器 ---------- */
+  #curveBox{position:absolute; right:12px; bottom:36px; width:280px; background:rgba(28,31,39,.96);
+    border:1px solid var(--line); border-radius:8px; padding:8px 10px; display:none;}
+  #curveBox.show{display:block;}
+  #curveBox h3{font-size:12px; color:var(--accent); margin-bottom:4px;}
+  #curveCanvas{width:100%; height:96px; background:#14161c; border-radius:5px; cursor:crosshair; touch-action:none;}
+</style>
+</head>
+<body>
+<div id="app">
+  <aside id="panel">
+    <h1>线稿描线渲染器 <small>Paper.js + opentype.js</small></h1>
+
+    <!-- 模块一:底图导入 -->
+    <section class="mod open" id="modBase">
+      <header>① 底图导入 <span class="tag">草稿位图</span></header>
+      <div class="body">
+        <label class="btn primary" for="baseFile">导入草稿位图…</label>
+        <input type="file" id="baseFile" accept="image/*">
+        <div class="row"><label>不透明度</label><input type="range" id="baseOpacity" min="5" max="100" value="45"><span class="val" id="baseOpacityV">45%</span></div>
+        <div class="row"><label>底图缩放</label><input type="range" id="baseScale" min="10" max="400" value="100"><span class="val" id="baseScaleV">100%</span></div>
+        <button class="btn" id="baseFit">适配窗口</button>
+        <button class="btn" id="baseToggle">显示/隐藏</button>
+        <button class="btn warn" id="baseClear">移除底图</button>
+        <p class="hint">底图与描线共用同一坐标系,缩放平移始终对齐。</p>
+      </div>
+    </section>
+
+    <!-- 模块二:压感描线 -->
+    <section class="mod open" id="modDraw">
+      <header>② 压感描线 <span class="tag">速度→线宽</span></header>
+      <div class="body">
+        <div class="row">
+          <button class="btn tool active" data-tool="draw">✏️ 描笔 (B)</button>
+          <button class="btn tool" data-tool="edit">⬚ 编辑 (V)</button>
+          <button class="btn tool" data-tool="pan">✋ 平移 (H)</button>
+        </div>
+        <div class="row"><label>最小线宽</label><input type="range" id="minW" min="0.2" max="20" step="0.1" value="1"><span class="val" id="minWV">1.0</span></div>
+        <div class="row"><label>最大线宽</label><input type="range" id="maxW" min="0.5" max="40" step="0.1" value="8"><span class="val" id="maxWV">8.0</span></div>
+        <div class="row"><label>收尾渐细</label><input type="range" id="taper" min="0" max="200" value="40"><span class="val" id="taperV">40px</span></div>
+        <div class="row"><label>平滑度</label><input type="range" id="smoothing" min="0" max="100" value="45"><span class="val" id="smoothingV">45</span></div>
+        <div class="row"><label>墨色</label><input type="color" id="inkColor" value="#1a1a2e">
+          <span class="hint">落笔越慢线越粗,越快越细;数位板压感参与加权。</span></div>
+      </div>
+    </section>
+
+    <!-- 模块三:路径节点编辑 -->
+    <section class="mod" id="modEdit">
+      <header>③ 路径节点编辑 <span class="tag">矢量路径</span></header>
+      <div class="body">
+        <p class="hint">编辑工具下点击笔画选中;拖动节点/手柄改形;双击中线插入节点;Alt+点击节点删除;Del 删除整条;Ctrl+Z 撤销。</p>
+        <button class="btn" id="refitBtn">重新拟合选中路径</button>
+        <button class="btn warn" id="delBtn">删除选中 (Del)</button>
+        <div class="row"><label>粗细倍率</label><input type="range" id="wScale" min="10" max="300" value="100"><span class="val" id="wScaleV">100%</span></div>
+        <p class="hint" id="selInfo">未选中路径。选中后右下角出现线宽曲线编辑器,可逐段调整该路径的粗细变化。</p>
+      </div>
+    </section>
+
+    <!-- 模块四:矢量导出 -->
+    <section class="mod" id="modExport">
+      <header>④ 矢量导出 <span class="tag">SVG + JSON</span></header>
+      <div class="body">
+        <div class="chk"><input type="checkbox" id="expBase"><label for="expBase">SVG 中包含底图</label></div>
+        <div class="chk"><input type="checkbox" id="expAnno" checked><label for="expAnno">嵌入描线说明文字</label></div>
+        <input type="text" id="annoText" placeholder="说明文字,如:描线稿 v1 · 2026" value="">
+        <div class="row"><label>字号</label><input type="range" id="annoSize" min="8" max="72" value="18"><span class="val" id="annoSizeV">18</span></div>
+        <label class="btn" for="fontFile">加载字体(.ttf/.otf/.woff)…</label>
+        <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2">
+        <p class="hint" id="fontInfo">未加载字体:说明文字以 &lt;text&gt; 嵌入。加载字体后由 opentype.js 转为矢量轮廓嵌入。中文需加载中文字体。</p>
+        <button class="btn primary" id="expSvg">导出 SVG 线稿</button>
+        <button class="btn primary" id="expJson">导出线宽参数 JSON</button>
+        <button class="btn warn" id="clearAll">清空全部笔画</button>
+      </div>
+    </section>
+  </aside>
+
+  <div id="stage">
+    <canvas id="canvas"></canvas>
+    <div id="curveBox">
+      <h3>线宽曲线(横轴=路径行程,纵轴=线宽) — 拖动调节</h3>
+      <canvas id="curveCanvas"></canvas>
+    </div>
+    <div id="statusbar">
+      <span>工具:<b id="stTool">描笔</b></span>
+      <span>缩放:<b id="stZoom">100%</b></span>
+      <span>笔画数:<b id="stCount">0</b></span>
+      <span id="stHint">滚轮缩放 · 空格/中键平移 · B 描笔 V 编辑 H 平移</span>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ================================================================
+ * 线稿描线渲染器
+ *  - Paper.js 负责矢量几何与渲染(缩放始终锐利)
+ *  - 落笔速度映射线宽(快→细,慢→粗),压感加权
+ *  - 每条笔画 = 中线(可编辑)+ 线宽剖面(64 采样)+ 变宽轮廓(填充路径)
+ *  - opentype.js 将说明文字转矢量轮廓嵌入 SVG
+ * ================================================================ */
+
+// ---------- 全局状态 ----------
+const S = {
+  tool: 'draw',
+  minW: 1, maxW: 8, taper: 40, smoothing: 0.45,
+  ink: '#1a1a2e',
+  strokes: [],          // {id, center, widths[64], widthScale, outline, color}
+  selected: null,
+  nextId: 1,
+  raster: null,
+  font: null, fontName: '',
+  annoText: '', annoSize: 18,
+  undoStack: [],
+};
+const WIDTH_SAMPLES = 64;   // 每条路径的线宽采样数
+const CURVE_CTRL = 17;      // 曲线编辑器控制点数
+
+// ---------- Paper.js 初始化 ----------
+const canvas = document.getElementById('canvas');
+const stage = document.getElementById('stage');
+paper.setup(canvas);
+const view = paper.view;
+
+const baseLayer  = new paper.Layer();  // 底图
+const inkLayer   = new paper.Layer();  // 描线轮廓(导出内容)
+const annoLayer  = new paper.Layer();  // 说明文字
+const guideLayer = new paper.Layer();  // 编辑用中线
+const uiLayer    = new paper.Layer();  // 实时预览
+
+function resizeCanvas(){
+  const r = stage.getBoundingClientRect();
+  canvas.width = Math.max(1, Math.round(r.width));
+  canvas.height = Math.max(1, Math.round(r.height));
+  view.setViewSize(canvas.width, canvas.height);
+}
+new ResizeObserver(resizeCanvas).observe(stage);
+resizeCanvas();
+
+// ---------- 工具函数 ----------
+const clamp = (v,a,b)=>Math.min(b,Math.max(a,v));
+const smoothstep = t => { t = clamp(t,0,1); return t*t*(3-2*t); };
+function toProj(e){ return view.viewToProject(new paper.Point(e.offsetX, e.offsetY)); }
+function download(name, text, mime){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: mime||'application/octet-stream'}));
+  a.download = name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+}
+function updateStatus(){
+  document.getElementById('stZoom').textContent = Math.round(view.zoom*100)+'%';
+  document.getElementById('stCount').textContent = S.strokes.length;
+}
+
+// ================================================================
+// 模块一:底图导入
+// ================================================================
+document.getElementById('baseFile').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    if (S.raster){ S.raster.remove(); S.raster = null; }
+    baseLayer.activate();
+    const r = new paper.Raster(rd.result);
+    r.on('load', ()=>{
+      S.raster = r;
+      r.opacity = +document.getElementById('baseOpacity').value/100;
+      fitBase();
+      inkLayer.activate();
+    });
+  };
+  rd.readAsDataURL(f);
+  e.target.value = '';
+});
+function fitBase(){
+  if(!S.raster) return;
+  const vw = view.viewSize.width, vh = view.viewSize.height;
+  const s = Math.min(vw/S.raster.width, vh/S.raster.height)*0.92;
+  S.raster.scaling = new paper.Point(s,s);
+  S.raster.position = view.center;
+  document.getElementById('baseScale').value = 100;
+  document.getElementById('baseScaleV').textContent = '100%';
+}
+document.getElementById('baseFit').onclick = fitBase;
+document.getElementById('baseToggle').onclick = ()=>{ if(S.raster) S.raster.visible = !S.raster.visible; };
+document.getElementById('baseClear').onclick = ()=>{ if(S.raster){ S.raster.remove(); S.raster=null; } };
+document.getElementById('baseOpacity').oninput = e=>{
+  document.getElementById('baseOpacityV').textContent = e.target.value+'%';
+  if(S.raster) S.raster.opacity = e.target.value/100;
+};
+document.getElementById('baseScale').oninput = e=>{
+  document.getElementById('baseScaleV').textContent = e.target.value+'%';
+  if(S.raster){ const s = e.target.value/100; S.raster.scaling = new paper.Point(s,s); }
+};
+
+// ================================================================
+// 模块二:压感描线(速度→线宽)
+// ================================================================
+let drawing = null;   // {pts:[], ws:[], lens:[], total, preview, lastRaw, lastT, smSpeed, smPt}
+
+function pointerWidth(rawP, lastRawP, dt, pressure){
+  const dist = rawP.getDistance(lastRawP);
+  const speed = dist/Math.max(dt,1);              // px/ms
+  drawing.smSpeed = drawing.smSpeed*0.55 + speed*0.45;
+  const norm = clamp(drawing.smSpeed/1.6, 0, 1);  // ~1.6px/ms 以上达到最细
+  let w = S.maxW - norm*(S.maxW - S.minW);        // 快→细,慢→粗
+  if (pressure > 0) w *= 0.35 + 0.65*pressure;    // 压感加权
+  return clamp(w, 0.05, 80);
+}
+
+function beginStroke(e){
+  const p = toProj(e);
+  uiLayer.activate();
+  const preview = new paper.Path({
+    strokeColor: S.ink, strokeWidth: S.maxW, strokeCap:'round', strokeJoin:'round'
+  });
+  preview.add(p);
+  inkLayer.activate();
+  drawing = { pts:[p.clone()], ws:[S.maxW], lens:[0], total:0, preview,
+              lastRaw:p, lastT:performance.now(), smSpeed:0, smPt:p.clone() };
+}
+
+function continueStroke(e){
+  if(!drawing) return;
+  const raw = toProj(e);
+  const now = performance.now();
+  const dt = now - drawing.lastT;
+  if (raw.getDistance(drawing.lastRaw) < 0.4) return;   // 死区,抑制抖动
+  const w = pointerWidth(raw, drawing.lastRaw, dt, e.pressure||0);
+  drawing.lastRaw = raw; drawing.lastT = now;
+  // 位置指数平滑(平滑度滑杆)
+  const k = 1 - S.smoothing*0.92;
+  drawing.smPt = drawing.smPt.add(raw.subtract(drawing.smPt).multiply(k));
+  const prev = drawing.pts[drawing.pts.length-1];
+  drawing.total += drawing.smPt.getDistance(prev);
+  drawing.pts.push(drawing.smPt.clone());
+  drawing.ws.push(w);
+  drawing.lens.push(drawing.total);
+  drawing.preview.add(drawing.smPt);
+  drawing.preview.strokeWidth = w;
+}
+
+function endStroke(){
+  if(!drawing) return;
+  const d = drawing; drawing = null;
+  d.preview.remove();
+  if (d.pts.length < 2 || d.total < 0.5){            // 点按 → 圆点
+    const avg = d.ws.reduce((a,b)=>a+b,0)/d.ws.length;
+    addStroke(makeDot(d.pts[0], avg));
+    return;
+  }
+  // 1) 中线拟合(平滑度→简化容差)
+  const center = new paper.Path(d.pts);
+  center.simplify(1.2 + S.smoothing*4);
+  center.smooth({type:'continuous'});
+  if (center.segments.length < 2 || center.length < 0.5){ center.remove(); addStroke(makeDot(d.pts[0], d.ws[0])); return; }
+
+  // 2) 线宽剖面:沿中线弧长 64 采样,从原始点列按行程比例插值
+  const widths = new Array(WIDTH_SAMPLES);
+  const L = center.length;
+  for (let i=0;i<WIDTH_SAMPLES;i++){
+    const target = (i/(WIDTH_SAMPLES-1)) * L / L * d.total;   // 中线行程→原始行程
+    let j = 1; while (j < d.lens.length-1 && d.lens[j] < target) j++;
+    const t = (target - d.lens[j-1]) / Math.max(d.lens[j]-d.lens[j-1], 1e-6);
+    let w = d.ws[j-1] + (d.ws[j]-d.ws[j-1])*clamp(t,0,1);
+    // 3) 笔锋收尾:距末端 taper 像素内渐细
+    const fromEnd = L - (i/(WIDTH_SAMPLES-1))*L;
+    if (S.taper > 0 && fromEnd < S.taper) w *= smoothstep(fromEnd/S.taper);
+    widths[i] = Math.max(w, 0.05);
+  }
+  guideLayer.addChild(center);   // 中线归入编辑层,不进入导出内容
+  center.visible = false;
+  center.strokeColor = '#4da3ff'; center.strokeWidth = 1; center.dashArray = [4,3];
+  inkLayer.activate();
+  addStroke({ center, widths, widthScale:1, color:S.ink });
+}
+
+function makeDot(p, w){
+  guideLayer.activate();
+  const center = new paper.Path([p.clone(), p.add(new paper.Point(0.5,0))]);
+  center.visible = false; center.strokeColor='#4da3ff'; center.dashArray=[4,3];
+  inkLayer.activate();
+  const widths = new Array(WIDTH_SAMPLES).fill(Math.max(w,0.3));
+  return { center, widths, widthScale:1, color:S.ink };
+}
+
+// ---------- 变宽轮廓生成:中线 + 法向偏移 ----------
+function widthAt(stroke, f){
+  const ws = stroke.widths, x = clamp(f,0,1)*(ws.length-1);
+  const i = Math.floor(x), t = x-i;
+  const a = ws[i], b = ws[Math.min(i+1, ws.length-1)];
+  return (a+(b-a)*t) * stroke.widthScale;
+}
+
+function renderOutline(stroke){
+  if (stroke.outline) stroke.outline.remove();
+  const c = stroke.center, L = c.length;
+  inkLayer.activate();
+  let outline;
+  if (L < 1.5){
+    outline = new paper.Path.Circle(c.firstSegment.point, Math.max(widthAt(stroke,0)/2, 0.3));
+  } else {
+    const M = clamp(Math.round(L/2.5), 16, 180);
+    const left=[], right=[];
+    for (let i=0;i<M;i++){
+      const f = i/(M-1);
+      const p = c.getPointAt(f*L);
+      let n = c.getNormalAt(f*L) || new paper.Point(0,1);
+      const off = n.multiply(Math.max(widthAt(stroke,f),0.05)/2);
+      left.push(p.add(off)); right.push(p.subtract(off));
+    }
+    outline = new paper.Path(left);
+    outline.addSegments(right.reverse());
+    outline.closed = true;
+    outline.smooth();
+  }
+  outline.fillColor = stroke.color;
+  outline.data.stroke = stroke;
+  stroke.outline = outline;
+  if (S.selected === stroke) highlightOutline(stroke);
+}
+
+function addStroke(parts){
+  const stroke = { id: S.nextId++, widthScale: parts.widthScale||1,
+                   center: parts.center, widths: parts.widths, color: parts.color||S.ink };
+  parts.center.data.stroke = stroke;
+  S.strokes.push(stroke);
+  renderOutline(stroke);
+  S.undoStack.push({type:'add', stroke});
+  updateStatus();
+}
+
+function removeStroke(stroke, record){
+  const i = S.strokes.indexOf(stroke);
+  if (i>=0) S.strokes.splice(i,1);
+  stroke.center.remove(); if (stroke.outline) stroke.outline.remove();
+  if (S.selected === stroke) selectStroke(null);
+  if (record) S.undoStack.push({type:'del', stroke, index:i});
+  updateStatus();
+}
+
+// ================================================================
+// 模块三:路径节点编辑
+// ================================================================
+const hitOpts = { segments:true, handles:true, stroke:true, fill:false, tolerance:6 };
+let editDrag = null;   // {kind:'segment'|'handle-in'|'handle-out', seg}
+
+function selectStroke(stroke){
+  if (S.selected){
+    S.selected.center.visible = false;
+    S.selected.center.fullySelected = false;
+    unhighlightOutline(S.selected);
+  }
+  S.selected = stroke;
+  const info = document.getElementById('selInfo');
+  const box = document.getElementById('curveBox');
+  if (stroke){
+    stroke.center.visible = true;
+    stroke.center.fullySelected = true;
+    highlightOutline(stroke);
+    info.textContent = `已选中路径 #${stroke.id} · ${stroke.center.segments.length} 个节点 · 长度 ${Math.round(stroke.center.length)}px`;
+    document.getElementById('wScale').value = Math.round(stroke.widthScale*100);
+    document.getElementById('wScaleV').textContent = Math.round(stroke.widthScale*100)+'%';
+    box.classList.add('show');
+    syncCtrlFromStroke(); drawCurveEditor();
+  } else {
+    info.textContent = '未选中路径。选中后右下角出现线宽曲线编辑器,可逐段调整该路径的粗细变化。';
+    box.classList.remove('show');
+  }
+}
+function highlightOutline(s){ if(s.outline){ s.outline.strokeColor='#4da3ff'; s.outline.strokeWidth=1.2/view.zoom; } }
+function unhighlightOutline(s){ if(s.outline){ s.outline.strokeColor=null; s.outline.strokeWidth=0; } }
+
+function editPointerDown(e){
+  const pt = toProj(e);
+  // 1) 已选中路径的节点/手柄
+  if (S.selected){
+    const hit = paper.project.hitTest(pt, hitOpts);
+    if (hit && hit.item === S.selected.center){
+      if (hit.type === 'segment'){
+        if (e.altKey){                       // Alt+点击 → 删除节点
+          if (S.selected.center.segments.length > 2){ hit.segment.remove(); renderOutline(S.selected); }
+          return;
+        }
+        editDrag = {kind:'segment', seg:hit.segment};
+      } else if (hit.type === 'handle-in' || hit.type === 'handle-out'){
+        editDrag = {kind:hit.type, seg:hit.segment};
+      }
+      return;
+    }
+  }
+  // 2) 填充命中 → 选择笔画
+  const hit = paper.project.hitTest(pt, {fill:true, stroke:false, segments:false, tolerance:4});
+  if (hit && hit.item.data && hit.item.data.stroke){
+    selectStroke(hit.item.data.stroke);
+  } else {
+    selectStroke(null);
+  }
+}
+function editPointerMove(e){
+  if (!editDrag || !S.selected) return;
+  const pt = toProj(e);
+  const seg = editDrag.seg;
+  if (editDrag.kind === 'segment') seg.point = pt;
+  else if (editDrag.kind === 'handle-in')  seg.handleIn  = pt.subtract(seg.point);
+  else if (editDrag.kind === 'handle-out') seg.handleOut = pt.subtract(seg.point);
+}
+function editPointerUp(){
+  if (editDrag && S.selected) renderOutline(S.selected);
+  editDrag = null;
+}
+// 双击中线 → 插入节点
+canvas.addEventListener('dblclick', e=>{
+  if (S.tool !== 'edit' || !S.selected) return;
+  const pt = toProj(e);
+  const loc = S.selected.center.getNearestLocation(pt);
+  if (loc && loc.point.getDistance(pt) < 8/view.zoom + 6){
+    S.selected.center.divideAt(loc);
+    renderOutline(S.selected);
+  }
+});
+
+// 重新拟合:重采样 → 简化 → 平滑(线宽剖面按行程比例保留)
+document.getElementById('refitBtn').onclick = ()=>{
+  const s = S.selected; if(!s) return;
+  const c = s.center, L = c.length;
+  const n = clamp(Math.round(L/4), 8, 400);
+  const pts = [];
+  for (let i=0;i<=n;i++) pts.push(c.getPointAt(L*i/n));
+  const np = new paper.Path(pts);
+  np.simplify(1.2 + S.smoothing*4);
+  np.smooth({type:'continuous'});
+  c.removeSegments();
+  c.addSegments(np.segments);
+  np.remove();
+  renderOutline(s);
+  selectStroke(s);
+};
+document.getElementById('delBtn').onclick = ()=>{ if(S.selected) removeStroke(S.selected, true); };
+document.getElementById('wScale').oninput = e=>{
+  document.getElementById('wScaleV').textContent = e.target.value+'%';
+  if (S.selected){ S.selected.widthScale = e.target.value/100; renderOutline(S.selected); drawCurveEditor(); }
+};
+
+// ---------- 线宽曲线编辑器 ----------
+const curveCanvas = document.getElementById('curveCanvas');
+const cctx = curveCanvas.getContext('2d');
+let ctrl = new Array(CURVE_CTRL).fill(1);   // 控制点线宽值
+
+function syncCtrlFromStroke(){
+  if (!S.selected) return;
+  for (let k=0;k<CURVE_CTRL;k++){
+    ctrl[k] = widthAtRaw(S.selected, k/(CURVE_CTRL-1));
+  }
+}
+function widthAtRaw(stroke, f){   // 不含倍率
+  const ws = stroke.widths, x = clamp(f,0,1)*(ws.length-1);
+  const i = Math.floor(x), t = x-i;
+  return ws[i] + (ws[Math.min(i+1,ws.length-1)]-ws[i])*t;
+}
+function applyCtrlToStroke(){
+  const s = S.selected; if(!s) return;
+  for (let i=0;i<WIDTH_SAMPLES;i++){
+    const x = (i/(WIDTH_SAMPLES-1))*(CURVE_CTRL-1);
+    const k = Math.floor(x), t = x-k;
+    s.widths[i] = ctrl[k] + (ctrl[Math.min(k+1,CURVE_CTRL-1)]-ctrl[k])*t;
+  }
+  // 轻平滑,避免折线感
+  for (let i=1;i<WIDTH_SAMPLES-1;i++)
+    s.widths[i] = s.widths[i]*0.5 + (s.widths[i-1]+s.widths[i+1])*0.25;
+  renderOutline(s);
+}
+function curveWMax(){ return Math.max(S.maxW*1.6, 4); }
+function drawCurveEditor(){
+  const w = curveCanvas.width = curveCanvas.clientWidth * (devicePixelRatio||1);
+  const h = curveCanvas.height = curveCanvas.clientHeight * (devicePixelRatio||1);
+  const g = cctx; g.clearRect(0,0,w,h);
+  const wMax = curveWMax();
+  const X = f => f*w, Y = v => h - clamp(v/wMax,0,1)*(h-10) - 5;
+  g.strokeStyle = '#2e3342';
+  for (let i=1;i<4;i++){ g.beginPath(); g.moveTo(0,h*i/4); g.lineTo(w,h*i/4); g.stroke(); }
+  if (!S.selected) return;
+  // 实际剖面
+  g.strokeStyle = '#4da3ff'; g.lineWidth = 2*(devicePixelRatio||1); g.beginPath();
+  for (let i=0;i<WIDTH_SAMPLES;i++){
+    const f = i/(WIDTH_SAMPLES-1);
+    const y = Y(widthAtRaw(S.selected,f));
+    i ? g.lineTo(X(f),y) : g.moveTo(X(f),y);
+  }
+  g.stroke();
+  // 控制点
+  g.fillStyle = '#ffb84d';
+  for (let k=0;k<CURVE_CTRL;k++){
+    g.beginPath(); g.arc(X(k/(CURVE_CTRL-1)), Y(ctrl[k]), 3.5*(devicePixelRatio||1), 0, 7); g.fill();
+  }
+}
+let curveDrag = false;
+function curveEdit(e){
+  const r = curveCanvas.getBoundingClientRect();
+  const f = clamp((e.clientX-r.left)/r.width, 0, 1);
+  const v = clamp((1-(e.clientY-r.top)/r.height), 0, 1) * curveWMax();
+  const k = Math.round(f*(CURVE_CTRL-1));
+  ctrl[k] = Math.max(v, 0.05);
+  applyCtrlToStroke(); drawCurveEditor();
+}
+curveCanvas.addEventListener('pointerdown', e=>{ curveDrag=true; curveCanvas.setPointerCapture(e.pointerId); curveEdit(e); });
+curveCanvas.addEventListener('pointermove', e=>{ if(curveDrag) curveEdit(e); });
+curveCanvas.addEventListener('pointerup', ()=>curveDrag=false);
+
+// ================================================================
+// 画布交互:描线 / 编辑 / 平移 / 缩放
+// ================================================================
+let panning = false, panLast = null, spaceDown = false;
+
+canvas.addEventListener('pointerdown', e=>{
+  canvas.setPointerCapture(e.pointerId);
+  if (e.button === 1 || spaceDown || S.tool === 'pan'){
+    panning = true; panLast = {x:e.clientX, y:e.clientY}; return;
+  }
+  if (e.button !== 0) return;
+  if (S.tool === 'draw') beginStroke(e);
+  else if (S.tool === 'edit') editPointerDown(e);
+});
+canvas.addEventListener('pointermove', e=>{
+  if (panning){
+    const dx = e.clientX-panLast.x, dy = e.clientY-panLast.y;
+    panLast = {x:e.clientX, y:e.clientY};
+    view.center = view.center.subtract(new paper.Point(dx/view.zoom, dy/view.zoom));
+    return;
+  }
+  // 合并的高频采样点(压感笔)
+  const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+  if (S.tool==='draw' && drawing) for (const ev of evs) continueStroke(ev);
+  else if (S.tool==='edit') editPointerMove(e);
+});
+canvas.addEventListener('pointerup', ()=>{
+  if (panning){ panning=false; updateAnno(); return; }
+  if (S.tool==='draw') endStroke();
+  else if (S.tool==='edit') editPointerUp();
+});
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+// 缩放:以光标为中心,矢量重绘保持锐利
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const f = e.deltaY < 0 ? 1.12 : 1/1.12;
+  const newZoom = clamp(view.zoom*f, 0.05, 60);
+  const ratio = newZoom/view.zoom;
+  const proj = view.viewToProject(new paper.Point(e.offsetX, e.offsetY));
+  view.zoom = newZoom;
+  view.center = proj.subtract(proj.subtract(view.center).divide(ratio));
+  if (S.selected && S.selected.outline) S.selected.outline.strokeWidth = 1.2/view.zoom;
+  updateStatus();
+}, {passive:false});
+
+// ---------- 键盘 ----------
+window.addEventListener('keydown', e=>{
+  if (e.target.tagName === 'INPUT' && e.target.type === 'text') return;
+  if (e.code === 'Space'){ spaceDown = true; e.preventDefault(); }
+  else if (e.key === 'b' || e.key === 'B') setTool('draw');
+  else if (e.key === 'v' || e.key === 'V') setTool('edit');
+  else if (e.key === 'h' || e.key === 'H') setTool('pan');
+  else if ((e.key === 'Delete' || e.key === 'Backspace') && S.selected){ removeStroke(S.selected, true); }
+  else if ((e.ctrlKey||e.metaKey) && e.key === 'z'){ e.preventDefault(); undo(); }
+});
+window.addEventListener('keyup', e=>{ if (e.code==='Space') spaceDown=false; });
+
+function undo(){
+  const op = S.undoStack.pop(); if(!op) return;
+  if (op.type === 'add') removeStroke(op.stroke, false);
+  else if (op.type === 'del'){
+    S.strokes.splice(Math.min(op.index, S.strokes.length), 0, op.stroke);
+    guideLayer.addChild(op.stroke.center);
+    renderOutline(op.stroke);
+    updateStatus();
+  }
+}
+
+function setTool(t){
+  S.tool = t;
+  document.querySelectorAll('.tool').forEach(b=>b.classList.toggle('active', b.dataset.tool===t));
+  document.getElementById('stTool').textContent = {draw:'描笔', edit:'编辑', pan:'平移'}[t];
+  if (t !== 'edit') selectStroke(null);
+  else document.getElementById('modEdit').classList.add('open');
+}
+document.querySelectorAll('.tool').forEach(b=> b.onclick = ()=>setTool(b.dataset.tool));
+
+// ---------- 滑杆绑定 ----------
+function bind(id, fn){
+  const el = document.getElementById(id), lab = document.getElementById(id+'V');
+  el.oninput = ()=>fn(+el.value, lab);
+}
+bind('minW', (v,l)=>{ S.minW=v; l.textContent=v.toFixed(1); if(v>S.maxW){S.maxW=v; document.getElementById('maxW').value=v; document.getElementById('maxWV').textContent=v.toFixed(1);} });
+bind('maxW', (v,l)=>{ S.maxW=v; l.textContent=v.toFixed(1); if(v<S.minW){S.minW=v; document.getElementById('minW').value=v; document.getElementById('minWV').textContent=v.toFixed(1);} });
+bind('taper', (v,l)=>{ S.taper=v; l.textContent=v+'px'; });
+bind('smoothing', (v,l)=>{ S.smoothing=v/100; l.textContent=v; });
+bind('annoSize', (v,l)=>{ S.annoSize=v; l.textContent=v; updateAnno(); });
+document.getElementById('inkColor').oninput = e=>{ S.ink = e.target.value; };
+document.getElementById('annoText').oninput = e=>{ S.annoText = e.target.value; updateAnno(); };
+
+// 模块折叠
+document.querySelectorAll('.mod>header').forEach(h=>{
+  h.onclick = ()=>h.parentElement.classList.toggle('open');
+});
+
+// ================================================================
+// 模块四:矢量导出(SVG + JSON,opentype.js 说明文字)
+// ================================================================
+document.getElementById('fontFile').addEventListener('change', async e=>{
+  const f = e.target.files[0]; if(!f) return;
+  try {
+    S.font = opentype.parse(await f.arrayBuffer());
+    S.fontName = f.name;
+    document.getElementById('fontInfo').textContent = '已加载字体:'+f.name+' — 说明文字将由 opentype.js 转为矢量轮廓嵌入 SVG。';
+    updateAnno();
+  } catch(err){
+    document.getElementById('fontInfo').textContent = '字体解析失败:'+err.message;
+  }
+  e.target.value = '';
+});
+// 尝试加载 opentype.js 自带示例字体作为默认(失败则回退 <text>)
+fetch('https://cdn.jsdelivr.net/npm/opentype.js@1.3.4/fonts/FiraSansMedium.woff')
+  .then(r=>r.ok ? r.arrayBuffer() : Promise.reject())
+  .then(buf=>{ if(!S.font){ S.font = opentype.parse(buf); S.fontName='FiraSans(内置)';
+    document.getElementById('fontInfo').textContent='默认字体 FiraSans 已就绪(仅拉丁字符);中文说明请加载中文字体文件。'; updateAnno(); }})
+  .catch(()=>{});
+
+function updateAnno(){
+  annoLayer.removeChildren();
+  if (!S.annoText) return;
+  annoLayer.activate();
+  const pos = view.viewToProject(new paper.Point(16, view.viewSize.height-14));
+  if (S.font){
+    try {
+      const d = S.font.getPath(S.annoText, 0, 0, S.annoSize/view.zoom).toPathData(2);
+      const item = paper.project.importSVG(
+        '<svg xmlns="http://www.w3.org/2000/svg"><path d="'+d+'"/></svg>', {insert:false});
+      item.fillColor = S.ink;
+      item.position = new paper.Point(pos.x + item.bounds.width/2, pos.y - item.bounds.height/2);
+      annoLayer.addChild(item);
+    } catch(err){ /* 字形缺失等 → 回退 */ makeAnnoText(pos); }
+  } else makeAnnoText(pos);
+  inkLayer.activate();
+}
+function makeAnnoText(pos){
+  new paper.PointText({ point: pos, content: S.annoText,
+    fontSize: S.annoSize/view.zoom, fillColor: S.ink, fontFamily:'sans-serif' });
+}
+
+document.getElementById('expSvg').onclick = ()=>{
+  if (!document.getElementById('expAnno').checked) annoLayer.visible = false;
+  else updateAnno();
+  guideLayer.visible = false; uiLayer.visible = false;
+  if (!document.getElementById('expBase').checked) baseLayer.visible = false;
+  const svg = paper.project.exportSVG({asString:true, precision:2, bounds:'view'});
+  guideLayer.visible = true; uiLayer.visible = true; baseLayer.visible = true; annoLayer.visible = true;
+  download('lineart.svg', svg, 'image/svg+xml');
+};
+
+document.getElementById('expJson').onclick = ()=>{
+  const data = {
+    app: 'paper-line-tracer', version: 1,
+    params: { minWidth: S.minW, maxWidth: S.maxW, taperLength: S.taper,
+              smoothing: S.smoothing, widthSamples: WIDTH_SAMPLES,
+              speedRef: '1.6px/ms → minWidth, 0 → maxWidth' },
+    canvas: { width: canvas.width, height: canvas.height },
+    strokes: S.strokes.map(s=>({
+      id: s.id, color: s.color, widthScale: s.widthScale,
+      length: Math.round(s.center.length*100)/100,
+      segments: s.center.segments.map(g=>({
+        p:[+g.point.x.toFixed(2), +g.point.y.toFixed(2)],
+        hi:[+g.handleIn.x.toFixed(2), +g.handleIn.y.toFixed(2)],
+        ho:[+g.handleOut.x.toFixed(2), +g.handleOut.y.toFixed(2)]
+      })),
+      widths: s.widths.map(w=>+w.toFixed(3))   // 沿路径 0→1 行程的线宽剖面
+    })),
+    annotation: S.annoText ? { text: S.annoText, size: S.annoSize, font: S.fontName||null } : null
+  };
+  download('lineart-widths.json', JSON.stringify(data, null, 2), 'application/json');
+};
+
+document.getElementById('clearAll').onclick = ()=>{
+  if (!S.strokes.length) return;
+  if (confirm('确定清空全部 '+S.strokes.length+' 条笔画?')){
+    [...S.strokes].forEach(s=>removeStroke(s,false));
+    S.undoStack.length = 0;
+  }
+};
+
+updateStatus();
+updateAnno();
+</script>
+</body>
+</html>
